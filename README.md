@@ -9,7 +9,8 @@ This project started during the summer of 2022, made possible by and done in con
 with the wonderful students at
 [Mariam Boyd Elementary School](https://www.warrenk12nc.org/o/mbes). For students or
 staff interested in learning more, please visit
-[go.ncsu.edu/vexcode](https://go.ncsu.edu/vexcode).
+[go.ncsu.edu/vexcode](https://go.ncsu.edu/vexcode) (this webpage is also located within
+this repo [here](web/index.html)).
 
 ## Quickstart
 

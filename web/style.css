@@ -30,6 +30,9 @@
 
 body {
     padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
 }
 
 a {
@@ -60,7 +63,8 @@ label {
     border-radius: 10px;
 
     --padding: 1rem;
-    padding: var(--padding);
+    padding: 0 var(--padding);
+    padding-bottom: var(--padding);
 }
 
 .center {
@@ -81,19 +85,54 @@ hr {
     border-radius: 10px;
 }
 
-.image {
-    width: min(calc(100vw - 4rem), 1000px);
-    margin: auto;
-    border-radius: 10px;
-    box-shadow: 5px 0px 20px 0px rgba(0, 0, 0, 0.15);
+.super-mario {
+    position: relative;
+    width: fit-content;
+}
+
+.super-mario span {
+    width: fit-content;
+    z-index: 100;
+    color: rgb(204, 44, 29);
+}
+
+.super-mario img {
+    width: 3rem;
+
+    position: absolute;
+
+    left: -30%;
+
+    top: -50%;
+
+    transform: scaleX(-1);
 }
 
 img {
     transition: transform ease 0.5s;
 }
 
-img:hover {
+.image-large:hover {
     transform: translate(0, -10px);
+}
+
+.image-large {
+    width: min(calc(100vw - 4rem), 800px);
+    margin: auto;
+    border-radius: 10px;
+
+    box-shadow: 5px 0px 20px 0px rgba(0, 0, 0, 0.15);
+}
+
+.image-small {
+    width: min(calc(75vw - 4rem), 300px);
+    margin: auto;
+    border-radius: 15px;
+}
+
+.rubber-duck {
+    width: 2ch;
+    transform: translateY(25%);
 }
 
 .signature {
