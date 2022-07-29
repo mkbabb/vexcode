@@ -8,9 +8,11 @@ jobs:
             AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
         steps:
+            - uses: actions/checkout@v3
+
             - name: Deploy
               uses: reggionick/s3-deploy@v3
               with:
-                  folder: web
+                  folder: ./web
                   bucket: ${{ secrets.S3_BUCKET }}
                   bucket-region: ${{ secrets.S3_BUCKET_REGION }}
