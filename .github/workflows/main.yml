@@ -1,22 +1,20 @@
-name: Example workflow for S3 Deploy
+name: Upload Website
 on: [push]
 jobs:
-    run:
+    deploy:
         runs-on: ubuntu-latest
-        env:
-            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@master
 
-            - name: Deploy
-              uses: reggionick/s3-deploy@v3
+            - uses: jakejarvis/s3-sync-action@master
               with:
-                  folder: ./web
+                  args: --acl public-read --follow-symlinks --delete
 
-                  bucket: ${{ secrets.S3_BUCKET }}
-                  bucket-region: ${{ secrets.S3_BUCKET_REGION }}
+              env:
+                  AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+                  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
-                  private: false
-                  filesToInclude: ".*/*,*/*,**"
+                  AWS_REGION: "us-east-1" # optional: defaults to us-east-1
+
+                  SOURCE_DIR: "web" # optional: defaults to entire repository
