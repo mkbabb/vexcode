@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "vexcode"
+version = "0.1.0"
+description = ""
+authors = ["Mike Babb <mike7400@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.11"
+mypy = "^0.971"
+numpy = "^1.23.1"
+scipy = "^1.8.1"
+sklearn = "^0.0"
+opencv-python = "^4.6.0"
+matplotlib = "^3.5.2"
+
+[tool.poetry.dev-dependencies]
+black = "^22.6.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
