@@ -14,5 +14,9 @@ jobs:
               uses: reggionick/s3-deploy@v3
               with:
                   folder: ./web
+
                   bucket: ${{ secrets.S3_BUCKET }}
                   bucket-region: ${{ secrets.S3_BUCKET_REGION }}
+
+                  private: false
+                  filesToInclude: ".*/*,*/*,**"
