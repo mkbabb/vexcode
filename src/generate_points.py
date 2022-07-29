@@ -1,5 +1,10 @@
+"""
+Functions used to generate VEXcode (https://vr.vex.com/)
+robot API calls that allow for the drawing of an arbitrary image to the screen.
+"""
+
 import colorsys
-import math
+from typing import Literal
 
 import cv2
 import matplotlib.pyplot as plt
@@ -7,39 +12,30 @@ import numpy as np
 from scipy.spatial import KDTree, distance
 from sklearn.metrics import pairwise_distances
 
-import src.vexcode as vexcode
+from vexcode import pen, drivetrain, PREAMBLE, POSTAMBLE, PLAYGROUND_SIZE
 
 
-def masked_argmin(arr: np.ndarray, mask: np.ma.array):
-    masked = np.ma.array(arr, mask=mask)
-    return masked.argmin()
+def scale_to_aspect_ratio(n, aspect_ratio):
+    if aspect_ratio <= 1:
+        return n, int(n * aspect_ratio)
+    else:
+        return n, int(n / aspect_ratio)
 
 
-def order_points(
-    points: np.ndarray,
-):
-    # dist_mat = distance.squareform(distance.pdist(points, "euclidean"), checks=False)
-    dist_mat = pairwise_distances(points, metric="euclidean", n_jobs=-1)
-    mask = np.full(len(points), False)
-    ix = np.argmin(points[..., 0])
+def make_direction_vector(angle: float):
+    angle = np.deg2rad(angle)
+    return np.array([np.cos(angle), np.sin(angle)])
 
-    ixs = []
-    distances = []
 
-    for _ in range(len(points)):
-        row = dist_mat[ix]
+def linear_map(t: float, x1: float, y1: float, x2=0.0, y2=1.0):
+    a = (x2 - y2) / (x1 - y1)
+    b = x2 - (x2 - y2) / (x1 - y1) * x1
+    return a * t + b
 
-        new_ix = masked_argmin(row, mask)
-        mask[new_ix] = True
 
-        d = row[new_ix]
-
-        distances.append(d)
-        ixs.append(new_ix)
-
-        ix = new_ix
-
-    return points[ixs], np.asarray(distances)
+def rainbow_point(x: float, x1: float, y1: float):
+    hue = linear_map(x, x1, y1)
+    return tuple(map(lambda x: int(x * 255), colorsys.hsv_to_rgb(hue, 1.0, 1.0)))
 
 
 def pad_3d(arr: np.ndarray):
@@ -106,6 +102,38 @@ def center(arr: np.ndarray):
     return translate(-dx / 2, -dy / 2)
 
 
+def masked_argmin(arr: np.ndarray, mask: np.ma.array):
+    masked = np.ma.array(arr, mask=mask)
+    return masked.argmin()
+
+
+def order_points(
+    points: np.ndarray,
+):
+    # dist_mat = distance.squareform(distance.pdist(points, "euclidean"), checks=False)
+    dist_mat = pairwise_distances(points, metric="euclidean", n_jobs=-1)
+    mask = np.full(len(points), False)
+    ix = np.argmin(points[..., 0])
+
+    ixs = []
+    distances = []
+
+    for _ in range(len(points)):
+        row = dist_mat[ix]
+
+        new_ix = masked_argmin(row, mask)
+        mask[new_ix] = True
+
+        d = row[new_ix]
+
+        distances.append(d)
+        ixs.append(new_ix)
+
+        ix = new_ix
+
+    return points[ixs], np.asarray(distances)
+
+
 def load_image(path, size=None):
     im = cv2.imread(path)
     im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
@@ -127,48 +155,30 @@ def find_contours(im, threshold1=150, threshold2=255):
     return contours
 
 
-def make_direction_vector(angle: float):
-    angle = np.deg2rad(angle)
-    return np.array([np.cos(angle), np.sin(angle)])
-
-
-def linear_map(t: float, x1: float, y1: float, x2=0.0, y2=1.0):
-    a = (x2 - y2) / (x1 - y1)
-    b = x2 - (x2 - y2) / (x1 - y1) * x1
-    return a * t + b
-
-
-def rainbow_point(x: float, x1: float, y1: float):
-    hue = linear_map(x, x1, y1)
-    return tuple(map(lambda x: int(x * 255), colorsys.hsv_to_rgb(hue, 1.0, 1.0)))
-
-
-def make_path(points: np.array):
+def make_traceable_path(points: np.ndarray):
     x_min, x_max = np.min(points[..., 0]), np.max(points[..., 0])
 
     path = []
 
     prev_p = make_direction_vector(0)
 
-    for i in range(1, len(points)):
-        p = points[i]
-
+    for p in points:
         delta = p - prev_p
-        distance = np.linalg.norm(delta)
 
+        distance = np.linalg.norm(delta)
         angle = np.rad2deg(np.arctan2(delta[1], delta[0]))
+        # 0.05 error due to bug with rotation locking in vexcode.
+        # + 90 as the robot rotates relative to pi/2
         angle = ((360.05 - angle) + 90) % 360
 
         color = rainbow_point(p[0], x_min, x_max)
 
         path_i = {
-            "ix": i,
             "distance": np.round(distance, 2),
             "angle": np.round(angle, 2),
             "p": p,
             "color": color,
         }
-
         path.append(path_i)
 
         prev_p = p
@@ -176,11 +186,13 @@ def make_path(points: np.array):
     return path
 
 
-def generate_code(points: np.ndarray, distances: np.ndarray, mode="path") -> str:
+def generate_code(
+    points: np.ndarray, distances: np.ndarray, mode: Literal["all", "path"] = "path"
+) -> str:
     if mode == "all":
         return f"IMAGE_POINTS = {points.tolist()}"
     elif mode == "path":
-        path = make_path(points)
+        path = make_traceable_path(points)
 
         avg_dist = np.average(distances)
 
@@ -194,47 +206,38 @@ def generate_code(points: np.ndarray, distances: np.ndarray, mode="path") -> str
         for n, p in enumerate(path):
             angle, distance, color = p["angle"], p["distance"], p["color"]
 
-            if prev_angle != angle:
-                lines.append(vexcode.turn_for(angle=angle))
-            if prev_color != color:
-                lines.append(
-                    f"pen.set_pen_color_rgb({color[0]}, {color[1]}, {color[2]}, 100)"
-                )
+            if prev_angle != angle:  # optimizing consecutive same-angle turns
+                lines.append(drivetrain.turn_to_heading(angle))
+            if prev_color != color:  # similar as above
+                lines.append(pen.set_pen_color_rgb(*color))
 
             if distance > avg_dist:
                 # Extra extra thin not currently supported
-                lines.append("pen.set_pen_width(EXTRA_THIN)")
+                lines.append(pen.set_pen_width())
                 thin = True
             elif thin:
-                lines.append("pen.set_pen_width(EXTRA_THIN)")
+                lines.append(pen.set_pen_width())
                 thin = False
 
             if n == 1:
-                lines.append("pen.move(DOWN)")
+                lines.append(pen.move())
 
-            lines.append(vexcode.drive_for(distance=distance, units="MM"))
+            lines.append(drivetrain.drive_for(distance=distance))
 
             prev_angle = angle
             prev_color = color
 
-        lines.append("pen.move(UP)")
+        lines.append(pen.move("UP"))
 
         generate_image_body = "\n".join(f"\t{i}" for i in lines)
 
         return f"""
-{vexcode.PREAMBLE}
+{PREAMBLE}
     
 def generate_image():
 {generate_image_body}
 
-{vexcode.POSTAMBLE}"""
-
-
-def scale_to_aspect_ratio(n, aspect_ratio):
-    if aspect_ratio <= 1:
-        return n, int(n * aspect_ratio)
-    else:
-        return n, int(n / aspect_ratio)
+{POSTAMBLE}"""
 
 
 # path = "assets/1000_F_106135417_llsURwzfzT2aFy7mhWQ2QmLQmmYqGwLs-removebg-preview.png"
@@ -242,7 +245,7 @@ def scale_to_aspect_ratio(n, aspect_ratio):
 # path = "/Users/mkbabb/Programming/fourier-animate/assets/IMG_7304.jpg"
 # path = "assets/smiley.png"
 # path = "/Users/mkbabb/Programming/fourier-animate/assets/Square_-_black_simple.svg.png"
-# path = "assets/SpongeBob_SquarePants_character.svg.png"
+path = "assets/SpongeBob_SquarePants_character.svg.png"
 # path = "assets/Mona_Lisa,_by_Leonardo_da_Vinci,_from_C2RMF_retouched.png"
 # path = (
 #     "assets/Mona_Lisa__by_Leonardo_da_Vinci__from_C2RMF_retouched-removebg-preview.png"
@@ -254,7 +257,7 @@ def scale_to_aspect_ratio(n, aspect_ratio):
 # path = "assets/71b6S5TlExL._SL1500_.jpg"
 # path = "assets/329527.jpg"
 # path = "assets/Eraserhead-and-Present-Mic.jpg"
-path = "assets/deiywwr-0d9719ae-59b0-4fbc-adc3-a26de869d84e.png"
+# path = "assets/deiywwr-0d9719ae-59b0-4fbc-adc3-a26de869d84e.png"
 # path = "assets/qrcode.png"
 # path = "assets/FO0S0IRWUAIF85e.png"
 
@@ -263,7 +266,7 @@ im = load_image(path)
 height, width = im.shape
 aspect_ratio = width / height
 
-n = 500
+n = 50
 
 im = cv2.resize(
     im, scale_to_aspect_ratio(n, aspect_ratio), interpolation=cv2.INTER_AREA
@@ -277,13 +280,14 @@ contours = find_contours(im)
 all_points = np.vstack((*contours,))
 all_points = np.unique(all_points, axis=0)
 all_points = np.insert(all_points, 0, [0, 0], axis=0)
+
 # all_points = [tuple(reversed(i)) for i in all_points]
 
 # t_im = np.zeros(im.shape, dtype=np.uint8)
 # for p in all_points:
 #     t_im[p] = 1
 
-N, M = scale_to_aspect_ratio(vexcode.PLAYGROUND_SIZE, aspect_ratio)
+N, M = scale_to_aspect_ratio(PLAYGROUND_SIZE, aspect_ratio)
 # t_im = cv2.resize(t_im, (N, M), interpolation=cv2.INTER_AREA)
 
 # all_points = np.transpose(np.nonzero(t_im))
@@ -303,5 +307,5 @@ plt.show()
 
 code = generate_code(all_points, distances)
 
-with open("./generated.py", "w") as file:
+with open("./dist/generated.py", "w") as file:
     file.write(code)
