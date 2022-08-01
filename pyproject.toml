@@ -12,6 +12,7 @@ scipy = "^1.8.1"
 sklearn = "^0.0"
 opencv-python = "^4.6.0"
 matplotlib = "^3.5.2"
+Rtree = "^1.0.0"
 
 [tool.poetry.dev-dependencies]
 black = "^22.6.0"

@@ -13,6 +13,7 @@ from scipy.spatial import KDTree, distance
 from sklearn.metrics import pairwise_distances
 
 from vexcode import PLAYGROUND_SIZE, POSTAMBLE, PREAMBLE, drivetrain, pen
+import rtree
 
 
 def scale_to_aspect_ratio(n: int, aspect_ratio: float):
@@ -110,26 +111,35 @@ def masked_argmin(arr: np.ndarray, mask: np.ndarray):
 def order_points(
     points: np.ndarray,
 ):
-    # dist_mat = distance.squareform(distance.pdist(points, "euclidean"), checks=False)
-    dist_mat = pairwise_distances(points, metric="euclidean", n_jobs=-1)
-    mask = np.full(len(points), False)
-    ix = np.argmin(points[..., 0])
+
+    tree = rtree.Index()
+    for n, p in enumerate(points):
+        left, bottom = p
+        tree.insert(n, (left, bottom, left, bottom))
 
     ixs = []
     distances = []
 
-    for _ in range(len(points)):
-        row = dist_mat[ix]
+    ix = np.argmin(points[..., 0])
+    p = points[ix]
 
-        new_ix = masked_argmin(row, mask)
-        mask[new_ix] = True
+    ixs.append(ix)
+    distances.append(0)
 
-        d = row[new_ix]
+    tree.delete(ix, p)
 
-        distances.append(d)
-        ixs.append(new_ix)
+    for _ in range(len(points) - 1):
+        neighbors = tree.nearest(p, num_results=1)
 
-        ix = new_ix
+        ix = next(neighbors)
+        p_new = points[ix]
+
+        ixs.append(ix)
+        distances.append(np.linalg.norm(p_new - p))
+
+        p = p_new
+
+        tree.delete(ix, p)
 
     return points[ixs], np.asarray(distances)
 
@@ -306,7 +316,8 @@ def main(image_path: str, n: int = 50, plot: bool = False):
 
 
 if __name__ == "__main__":
-    image_path = "assets/SpongeBob_SquarePants_character.svg.png"
-    n = 50
+    # image_path = "assets/SpongeBob_SquarePants_character.svg.png"
+    image_path = "assets/deiywwr-0d9719ae-59b0-4fbc-adc3-a26de869d84e.png"
+    n = 1000
 
-    main(image_path=image_path, n=n)
+    main(image_path=image_path, n=n, plot=True)
